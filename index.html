@@ -133,7 +133,7 @@
 
   // ---------- 解密 ----------
   async function unlock(password) {
-    const buf = new Uint8Array(await (await fetch('data.enc', { cache: 'force-cache' })).arrayBuffer());
+    const buf = new Uint8Array(await (await fetch('data.enc', { cache: 'no-cache' })).arrayBuffer());
     if (String.fromCharCode(...buf.slice(0, 4)) !== 'XHS1') throw new Error('bad-file');
     const salt = buf.slice(4, 20), iv = buf.slice(20, 32), ct = buf.slice(32);
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
