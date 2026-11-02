@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>聊天时光机</title>
+<style>
+  :root {
+    --bg: #f6f3ee; --card: #ffffff; --ink: #2b2a28; --muted: #8a857d; --line: #e8e3da;
+    --me: #d9ecd4; --me-ink: #203a1f; --them: #ffffff; --accent: #c0574a; --accent-ink: #fff;
+    --voice: #6b5bd6; --sys: #b3ada4; --shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17171a; --card: #202024; --ink: #ecebe7; --muted: #8f8d87; --line: #2e2e34;
+      --me: #2e4a2c; --me-ink: #dff1d9; --them: #2a2a30; --accent: #e07a6b; --voice: #a89cf5; --sys: #66646c;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17171a; --card: #202024; --ink: #ecebe7; --muted: #8f8d87; --line: #2e2e34;
+    --me: #2e4a2c; --me-ink: #dff1d9; --them: #2a2a30; --accent: #e07a6b; --voice: #a89cf5; --sys: #66646c;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+
+  /* ---------- 锁屏 ---------- */
+  #lock { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg); z-index: 10; }
+  .lock-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; box-shadow: var(--shadow); text-align: center; }
+  .lock-card h1 { font-size: 20px; margin: 0 0 6px; }
+  .lock-card p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .lock-card form { display: flex; gap: 8px; }
+  .lock-card input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); letter-spacing: .2em; text-align: center; outline: none; }
+  .lock-card input:focus { border-color: var(--accent); }
+  .lock-card button { padding: 10px 16px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  .lock-card button:disabled { opacity: .6; cursor: default; }
+  #lockMsg { min-height: 20px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  #lockMsg.err { color: var(--accent); }
+  .lock-card.shake { animation: shake .4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+  /* ---------- 主界面 ---------- */
+  #app { display: none; height: 100%; }
+  #app.on { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: auto 1fr; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+  header h1 { font-size: 16px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .grow { flex: 1; min-width: 0; }
+  header button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+
+  nav { border-right: 1px solid var(--line); background: var(--card); overflow-y: auto; }
+  nav .month { position: sticky; top: 0; background: var(--card); padding: 10px 14px 4px; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .05em; border-bottom: 1px solid var(--line); }
+  nav .day { display: flex; justify-content: space-between; align-items: baseline; width: 100%; text-align: left; padding: 7px 14px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
+  nav .day:hover { background: var(--bg); }
+  nav .day.cur { border-left-color: var(--accent); background: var(--bg); font-weight: 600; }
+  nav .day small { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  main { overflow-y: auto; padding: 16px; scroll-behavior: auto; }
+  .daybar { display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 820px; margin: 0 auto 14px; }
+  .daybar h2 { font-size: 17px; margin: 0; }
+  .daybar .cnt { color: var(--muted); font-size: 13px; }
+  .daybar button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .daybar button:disabled { opacity: .4; cursor: default; }
+  #mobileDay { display: none; }
+
+  .msgs { max-width: 820px; margin: 0 auto; }
+  .msg { display: flex; gap: 8px; margin: 3px 0; align-items: flex-end; }
+  .msg.me { flex-direction: row-reverse; }
+  .msg.gap { margin-top: 14px; }
+  .bubble { max-width: 72%; padding: 7px 11px; border-radius: 14px; background: var(--them); box-shadow: var(--shadow); white-space: pre-wrap; word-break: break-word; }
+  .msg.me .bubble { background: var(--me); color: var(--me-ink); border-bottom-right-radius: 4px; }
+  .msg.them .bubble { border-bottom-left-radius: 4px; }
+  .time { font-size: 11px; color: var(--muted); flex: none; }
+  .voice { display: inline-block; font-size: 12px; color: var(--voice); border: 1px solid currentColor; border-radius: 6px; padding: 0 6px; margin-right: 6px; }
+  .sys { color: var(--sys); font-style: italic; }
+  .tag { color: var(--muted); }
+  .hour { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 8px; }
+
+  @media (max-width: 760px) {
+    #app.on { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    nav { display: none; }
+    #mobileDay { display: block; flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+    .daybar h2 { display: none; }
+    .bubble { max-width: 82%; }
+    main { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="lock">
+  <div class="lock-card" id="lockCard">
+    <h1>聊天时光机</h1>
+    <p>请输入密码查看内容</p>
+    <form id="lockForm" autocomplete="off">
+      <input id="pw" type="password" inputmode="numeric" placeholder="密码" autofocus>
+      <button id="go" type="submit">解锁</button>
+    </form>
+    <div id="lockMsg"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="grow">
+      <h1 id="title"></h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <button id="lockBtn" type="button">锁定</button>
+  </header>
+  <nav id="nav"></nav>
+  <main id="main">
+    <div class="daybar">
+      <button id="prev" type="button">‹ 前一天</button>
+      <h2 id="dayTitle"></h2>
+      <select id="mobileDay"></select>
+      <span class="cnt" id="dayCnt"></span>
+      <button id="next" type="button">后一天 ›</button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const ITER = 600000;
+  let data = null, idx = 0;
+
+  // ---------- 解密 ----------
+  async function unlock(password) {
+    const buf = new Uint8Array(await (await fetch('data.enc', { cache: 'force-cache' })).arrayBuffer());
+    if (String.fromCharCode(...buf.slice(0, 4)) !== 'XHS1') throw new Error('bad-file');
+    const salt = buf.slice(4, 20), iv = buf.slice(20, 32), ct = buf.slice(32);
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: ITER, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    let plain;
+    try { plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct); }
+    catch { throw new Error('wrong'); }
+    const ds = new DecompressionStream('gzip');
+    const stream = new Blob([plain]).stream().pipeThrough(ds);
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  $('lockForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = $('pw').value;
+    if (!pw) return;
+    const msg = $('lockMsg'), btn = $('go');
+    msg.className = ''; msg.textContent = '解密中…'; btn.disabled = true;
+    try {
+      data = await unlock(pw);
+      $('pw').value = '';
+      msg.textContent = '';
+      boot();
+    } catch (err) {
+      msg.className = 'err';
+      msg.textContent = err.message === 'wrong' ? '密码错误' : '加载失败，请刷新重试';
+      $('lockCard').classList.remove('shake'); void $('lockCard').offsetWidth; $('lockCard').classList.add('shake');
+      $('pw').select();
+    } finally { btn.disabled = false; }
+  });
+
+  $('lockBtn').addEventListener('click', () => {
+    data = null; $('msgs').textContent = ''; $('nav').textContent = ''; $('mobileDay').textContent = '';
+    $('app').classList.remove('on'); $('lock').style.display = 'flex'; $('pw').focus();
+  });
+
+  // ---------- 界面 ----------
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function fmtText(t) {
+    const voice = /^\[语音 (\d+)秒\]\s*(.*)$/s.exec(t);
+    if (voice) return `<span class="voice">语音 ${voice[1]}″</span>${esc(voice[2])}`;
+    if (/^\[(系统提示|撤回了一条消息|网页版无法显示的消息)/.test(t)) return `<span class="sys">${esc(t)}</span>`;
+    return esc(t).replace(/\[[^\]]{1,12}\]/g, m => `<span class="tag">${m}</span>`);
+  }
+
+  function boot() {
+    const { meta, stats, days } = data;
+    $('title').textContent = `与「${meta.other}」的聊天记录`;
+    $('subtitle').textContent = `${meta.range} · 共 ${stats.days} 天 · ${stats.total.toLocaleString()} 条消息（我 ${stats.mine.toLocaleString()} / ${meta.other} ${stats.theirs.toLocaleString()}）· 语音 ${stats.voice.toLocaleString()} 条`;
+
+    const nav = $('nav'), sel = $('mobileDay');
+    let month = '';
+    days.forEach((d, i) => {
+      const m = d.d.slice(0, 7);
+      if (m !== month) { month = m; const h = document.createElement('div'); h.className = 'month'; h.textContent = `${m.slice(0, 4)} 年 ${+m.slice(5)} 月`; nav.appendChild(h); }
+      const b = document.createElement('button'); b.className = 'day'; b.type = 'button'; b.dataset.i = i;
+      b.innerHTML = `<span>${+d.d.slice(8)} 日 <small>${d.w}</small></span><small>${d.m.length}</small>`;
+      b.addEventListener('click', () => show(i)); nav.appendChild(b);
+      const o = document.createElement('option'); o.value = i; o.textContent = `${d.d} ${d.w}（${d.m.length}）`; sel.appendChild(o);
+    });
+    sel.addEventListener('change', () => show(+sel.value));
+    $('lock').style.display = 'none'; $('app').classList.add('on');
+    show(0);
+  }
+
+  function show(i) {
+    const { days } = data;
+    idx = Math.max(0, Math.min(days.length - 1, i));
+    const d = days[idx];
+    $('dayTitle').textContent = `${d.d} ${d.w}`;
+    $('dayCnt').textContent = `${d.m.length} 条`;
+    $('mobileDay').value = idx;
+    $('prev').disabled = idx === 0; $('next').disabled = idx === days.length - 1;
+    document.querySelectorAll('nav .day').forEach(b => b.classList.toggle('cur', +b.dataset.i === idx));
+    const cur = document.querySelector('nav .day.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+
+    const parts = []; let lastHour = '', lastT = -1, lastS = -1;
+    for (const [t, s, text] of d.m) {
+      const h = t.slice(0, 2);
+      if (h !== lastHour) { parts.push(`<div class="hour">${h}:00</div>`); lastHour = h; lastT = -1; }
+      const mins = +t.slice(0, 2) * 60 + +t.slice(3);
+      const gap = lastT >= 0 && (mins - lastT >= 5 || s !== lastS);
+      parts.push(`<div class="msg ${s ? 'them' : 'me'}${gap ? ' gap' : ''}"><div class="bubble">${fmtText(text)}</div><span class="time">${t}</span></div>`);
+      lastT = mins; lastS = s;
+    }
+    $('msgs').innerHTML = parts.join('');
+    $('main').scrollTop = 0;
+  }
+
+  $('prev').addEventListener('click', () => show(idx - 1));
+  $('next').addEventListener('click', () => show(idx + 1));
+  document.addEventListener('keydown', e => {
+    if (!data || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'ArrowLeft') show(idx - 1);
+    if (e.key === 'ArrowRight') show(idx + 1);
+  });
+})();
+</script>
+</body>
+</html>
