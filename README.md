@@ -9,3 +9,12 @@
 ```bash
 node tools/build.mjs <聊天记录.txt> <密码> data.enc
 ```
+
+## 增量更新
+
+```bash
+node tools/update.mjs <新增聊天记录.txt>
+```
+
+用密码解密现有 `data.enc`，与新导出的记录合并后重新加密写回。密码在终端里隐藏输入（或通过环境变量 `CHAT_PASSWORD` 传入）。
+新记录中第一个完整的一天及之后的日期以新记录为准，更早的日期保留原数据。
